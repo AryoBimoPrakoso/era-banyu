@@ -1,0 +1,12 @@
+Dependencies
+
+/node_modules
+
+Konfigurasi Sensitif
+
+.env
+
+Log files
+
+npm-debug.log*
+.DS_Store
