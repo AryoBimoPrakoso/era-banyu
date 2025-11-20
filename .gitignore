@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# FIREBASE/SECURITY (BARU DITAMBAHKAN)
+# Service Account Key untuk Backend yang berada di app/backend/
+app/backend/firebase-adminsdk.json
+
 # vercel
 .vercel
 
