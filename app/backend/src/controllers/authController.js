@@ -1,265 +1,197 @@
-// src/controllers/authController.js
+// controllers/authController.js - VERSI FINAL (Menggunakan Variabel Lingkungan)
 
-// FIX KRUSIAL: Mengambil db (instance Firestore) dan admin (instance Admin SDK) dari config
-const { db, admin } = require('../config/db'); 
-const bcrypt = require('bcrypt');
+const { db, admin } = require('../config/db');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto'); // Diperlukan untuk membuat token reset
-const { transporter } = require('../config/emailConfig'); // Diperlukan untuk mengirim email
 
-// Definisikan referensi ke koleksi 'users'
-// db kini adalah instance Firestore, sehingga .collection() dapat dipanggil
-const usersCollection = db.collection('users');
+// Import Custom Errors
+const { BadRequestError, UnauthorizedError, InternalServerError, ForbiddenError } = require('../utils/customError'); 
 
-// ==========================================================
-// FUNGSI UTAMA: REGISTER
-// ==========================================================
-const register = async (req, res) => {
-    const { email, password } = req.body;
+// Nama koleksi untuk admin
+const ADMIN_COLLECTION = 'admins';
 
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email dan password harus diisi.' });
+
+/**
+ * Utilitas untuk membuat token JWT
+ * @param {object} payload - Data yang akan dimasukkan ke dalam token
+ * @returns {string} Token JWT
+ */
+const generateToken = (payload) => {
+    if (!process.env.JWT_SECRET) {
+        throw new InternalServerError('Kesalahan Server: Kunci rahasia JWT tidak ditemukan.');
+    }
+    // Menggunakan process.env.JWT_SECRET untuk keamanan
+    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' }); 
+};
+
+
+/**
+ * Endpoint untuk Pendaftaran Admin Pertama (First-Time Setup)
+ * HANYA boleh dipanggil jika belum ada admin terdaftar.
+ */
+exports.registerFirstAdmin = async (req, res, next) => {
+    const { username, password, email } = req.body;
+    if (!username || !password) {
+        return next(new BadRequestError('Username dan password wajib diisi.'));
     }
 
     try {
-        // 1. Cek apakah user sudah ada
-        const existingUser = await usersCollection
-            .where('email', '==', email)
+        // 1. Cek apakah sudah ada admin terdaftar
+        const snapshot = await db.collection(ADMIN_COLLECTION).limit(1).get();
+        if (!snapshot.empty) {
+            return next(new ForbiddenError('Admin sudah terdaftar. Silakan login atau hubungi SuperAdmin.'));
+        }
+
+        // 2. Hash Password
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        // 3. Simpan Admin Pertama ke Firestore
+        const newAdminData = {
+            username: username,
+            email: email,
+            passwordHash: passwordHash,
+            role: 'SuperAdmin', 
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdByAdminId: null, 
+        };
+
+        const docRef = await db.collection(ADMIN_COLLECTION).add(newAdminData);
+        const adminId = docRef.id;
+
+        // 4. Buat JWT untuk SuperAdmin pertama
+        const payload = {
+            id: adminId,
+            username: newAdminData.username,
+            role: newAdminData.role,
+        };
+        const token = generateToken(payload);
+
+        res.status(201).json({ 
+            message: 'Registrasi Admin Pertama berhasil!', 
+            adminId: adminId,
+            token: token
+        });
+
+    } catch (error) {
+        console.error('Error saat registrasi admin:', error);
+        next(new InternalServerError('Gagal melakukan registrasi Admin Pertama.'));
+    }
+};
+
+/**
+ * Endpoint untuk Admin Mendaftarkan Pegawai Admin Baru (Pegawai Kedua, dst.)
+ * Rute ini WAJIB diproteksi oleh middleware verifyAdmin.
+ */
+exports.registerNewAdmin = async (req, res, next) => {
+    // Ambil ID Admin yang sedang login dari token (disediakan oleh verifyAdmin middleware)
+    const registeringAdminId = req.admin ? req.admin.id : 'SYSTEM'; 
+    const { username, password, role = 'editor', email } = req.body; 
+
+    if (!username || !password) {
+        return next(new BadRequestError('Username dan password wajib diisi untuk Admin baru.'));
+    }
+    
+    // Opsional: Cek apakah Admin yang mendaftar punya izin untuk membuat role tertentu 
+    if (role.toLowerCase() === 'superadmin' && req.admin.role.toLowerCase() !== 'superadmin') {
+        return next(new ForbiddenError('Hanya SuperAdmin yang dapat mendaftarkan Admin dengan role SuperAdmin.'));
+    }
+
+    try {
+        // 1. Cek apakah username sudah ada
+        const existingSnapshot = await db.collection(ADMIN_COLLECTION)
+            .where('username', '==', username)
             .limit(1)
             .get();
 
-        if (!existingUser.empty) {
-            return res.status(409).json({ error: 'Email sudah terdaftar.' });
+        if (!existingSnapshot.empty) {
+            return next(new BadRequestError('Username sudah digunakan. Pilih username lain.'));
         }
+        
+        // 2. Hash Password
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
 
-        // 2. Hash password sebelum disimpan
-        const saltRounds = 10;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
+        // 3. Simpan Admin Baru ke Firestore
+        const newAdminData = {
+            username: username,
+            email: email,
+            passwordHash: passwordHash,
+            role: role, 
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdByAdminId: registeringAdminId, 
+        };
 
-        // 3. Buat dokumen user baru di Firestore
-        const newUserRef = await usersCollection.add({
-            email,
-            passwordHash, // Simpan hash
-            role: 'user', // Default role untuk registrasi adalah 'user'
-            // FIX: Menggunakan Server Timestamp untuk waktu yang akurat
-            created_at: admin.firestore.FieldValue.serverTimestamp(), 
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        const docRef = await db.collection(ADMIN_COLLECTION).add(newAdminData);
+        const adminId = docRef.id;
+
+        // 4. Buat JWT untuk Admin baru
+        const payload = {
+            id: adminId,
+            username: newAdminData.username,
+            role: newAdminData.role,
+        };
+        const token = generateToken(payload);
+        
+        res.status(201).json({ 
+            message: `Admin Pegawai baru (${username}) berhasil didaftarkan.`, 
+            adminId: adminId,
+            role: newAdminData.role,
+            token: token
         });
 
-        // 4. Buat Token
-        const token = jwt.sign(
-            { id: newUserRef.id, role: 'user' },
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' }
-        );
-
-        res.status(201).json({
-            message: 'Registrasi berhasil! Akun telah dibuat.',
-            token,
-            role: 'user',
-            id: newUserRef.id,
-        });
-
-    } catch (err) {
-        console.error('Terjadi error saat proses registrasi user:', err);
-        res.status(500).json({ error: 'Terjadi kesalahan pada server saat registrasi.' });
+    } catch (error) {
+        console.error('Error saat mendaftarkan admin baru:', error);
+        next(new InternalServerError('Gagal mendaftarkan admin baru.'));
     }
 };
 
 
-// ==========================================================
-// FUNGSI UTAMA: LOGIN
-// ==========================================================
-const login = async (req, res) => {
-    const { email, password } = req.body;
-
-    // Validasi input
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email dan password harus diisi.' });
-    }
+/**
+ * Endpoint untuk Login Admin
+ */
+exports.loginAdmin = async (req, res, next) => {
+    const { username, password } = req.body;
 
     try {
-        // 1. Cari user di Database berdasarkan email
-        const snapshot = await usersCollection
-            .where('email', '==', email)
-            .limit(1)
-            .get();
-
-        // Jika user tidak ditemukan
-        if (snapshot.empty) {
-            return res.status(401).json({ error: 'Kredensial tidak valid.' });
-        }
-        
-        const userDoc = snapshot.docs[0];
-        const user = userDoc.data();
-        const userId = userDoc.id;
-        
-        // 2. Bandingkan password yang dimasukkan dengan hash di DB
-        const storedHash = user.passwordHash;
-        const match = await bcrypt.compare(password, storedHash);
-        
-        // Jika password tidak cocok
-        if (!match) {
-            return res.status(401).json({ error: 'Kredensial tidak valid.' });
-        }
-
-        // 3. Buat JSON Web Token (JWT)
-        const token = jwt.sign(
-            { id: userId, role: user.role }, 
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' } 
-        );
-
-        // 4. Kirim token ke client
-        res.status(200).json({ 
-            message: 'Login berhasil!', 
-            token, 
-            role: user.role,
-            id: userId
-        });
-
-    } catch (err) {
-        console.error('Terjadi error saat proses login dengan Firestore:', err);
-        res.status(500).json({ error: 'Terjadi kesalahan pada server saat login.' });
-    }
-};
-
-// ==========================================================
-// FUNGSI BARU: LUPA PASSWORD (Mengirim Link Reset)
-// ==========================================================
-const forgotPassword = async (req, res) => {
-    const { email } = req.body;
-
-    if (!email) {
-        return res.status(400).json({ error: 'Email wajib diisi.' });
-    }
-
-    try {
-        // 1. Cari user di Database
-        const snapshot = await usersCollection
-            .where('email', '==', email)
+        // 1. Cari Admin berdasarkan username
+        const snapshot = await db.collection(ADMIN_COLLECTION)
+            .where('username', '==', username)
             .limit(1)
             .get();
 
         if (snapshot.empty) {
-            // Selalu kirim respons sukses agar tidak membocorkan data email mana yang terdaftar.
-            return res.status(200).json({ message: 'Jika email terdaftar, link reset telah dikirim.' });
+            return next(new UnauthorizedError('Username atau password salah.'));
         }
+
+        const adminDoc = snapshot.docs[0];
+        const adminData = adminDoc.data();
+        const adminId = adminDoc.id;
+
+        // 2. Bandingkan Password
+        const isMatch = await bcrypt.compare(password, adminData.passwordHash);
         
-        const userDoc = snapshot.docs[0];
-        const userId = userDoc.id;
+        if (!isMatch) {
+            return next(new UnauthorizedError('Username atau password salah.'));
+        }
 
-        // 2. Buat token reset dan masa kedaluwarsa (1 jam)
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 jam
-
-        // 3. Simpan token dan masa kedaluwarsa di dokumen user
-        await usersCollection.doc(userId).update({
-            resetToken,
-            resetTokenExpires,
-            updated_at: admin.firestore.FieldValue.serverTimestamp(), // FIX: Menggunakan Server Timestamp
-        });
-
-        // 4. Buat URL reset (GANTI INI DENGAN URL FRONTEND ASLI ANDA!)
-        const resetUrl = `http://localhost:8080/reset-password?token=${resetToken}&id=${userId}`;
-
-        // 5. Kirim Email
-        const mailOptions = {
-            from: process.env.EMAIL_FROM || 'no-reply@ecommerceapp.com',
-            to: email,
-            subject: 'Permintaan Reset Kata Sandi',
-            html: `
-                <p>Anda menerima email ini karena Anda (atau seseorang) telah meminta reset kata sandi.</p>
-                <p>Silakan klik link berikut untuk mengatur kata sandi baru:</p>
-                <a href="${resetUrl}">${resetUrl}</a>
-                <p>Link ini akan kedaluwarsa dalam 1 jam.</p>
-                <p>Jika Anda tidak meminta reset ini, abaikan email ini.</p>
-            `,
+        // 3. Buat JWT
+        const payload = {
+            id: adminId,
+            username: adminData.username,
+            role: adminData.role,
         };
         
-        if (!transporter) {
-             console.warn('Transporter email tidak tersedia. Email tidak terkirim.');
-             return res.status(500).json({ error: 'Layanan email tidak tersedia.' });
-        }
-
-        await transporter.sendMail(mailOptions);
-
-        res.status(200).json({ message: 'Link reset kata sandi telah dikirim ke email Anda.' });
-
-    } catch (err) {
-        console.error('Error saat Forgot Password:', err);
-        // Error 500 jika gagal, tapi pesan tetap samar jika terjadi masalah email
-        res.status(500).json({ error: 'Gagal memproses permintaan reset password.' });
-    }
-};
-
-// ==========================================================
-// FUNGSI BARU: RESET PASSWORD (Memperbarui Password Baru)
-// ==========================================================
-const resetPassword = async (req, res) => {
-    const { token, id, newPassword } = req.body;
-
-    if (!token || !id || !newPassword) {
-        return res.status(400).json({ error: 'Token, ID user, dan kata sandi baru wajib diisi.' });
-    }
-
-    if (newPassword.length < 6) {
-        return res.status(400).json({ error: 'Kata sandi minimal 6 karakter.' });
-    }
-
-    try {
-        // 1. Cari user berdasarkan ID
-        const docRef = usersCollection.doc(id);
-        const userDoc = await docRef.get();
-
-        if (!userDoc.exists) {
-            return res.status(404).json({ error: 'Pengguna tidak ditemukan.' });
-        }
-
-        const user = userDoc.data();
+        const token = generateToken(payload); 
         
-        // 2. Validasi Token dan Waktu Kedaluwarsa
-        if (user.resetToken !== token || !user.resetTokenExpires) {
-            return res.status(400).json({ error: 'Token reset tidak valid atau sudah digunakan.' });
-        }
-
-        // Konversi timestamp Firestore menjadi objek Date JavaScript untuk perbandingan
-        const expirationDate = user.resetTokenExpires.toDate(); 
-
-        if (expirationDate < new Date()) {
-            // Hapus token kedaluwarsa dan update timestamp
-            await docRef.update({ 
-                resetToken: null, 
-                resetTokenExpires: null,
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
-            }); 
-            return res.status(400).json({ error: 'Token reset sudah kedaluwarsa.' });
-        }
-
-        // 3. Hash password baru
-        const saltRounds = 10;
-        const passwordHash = await bcrypt.hash(newPassword, saltRounds);
-
-        // 4. Perbarui password dan hapus token reset
-        await docRef.update({
-            passwordHash,
-            resetToken: null, 
-            resetTokenExpires: null, 
-            updated_at: admin.firestore.FieldValue.serverTimestamp(), // FIX: Menggunakan Server Timestamp
+        res.status(200).json({ 
+            message: 'Login berhasil!', 
+            token: token,
+            admin: { id: adminId, username: adminData.username, role: adminData.role }
         });
 
-        res.status(200).json({ message: 'Kata sandi berhasil direset. Silakan login.' });
-
-    } catch (err) {
-        console.error('Error saat Reset Password:', err);
-        res.status(500).json({ error: 'Gagal mereset kata sandi.' });
+    } catch (error) {
+        console.error('Error saat login admin:', error);
+        next(new InternalServerError('Gagal melakukan login.'));
     }
-};
-
-
-module.exports = {
-    login,
-    register,
-    forgotPassword,
-    resetPassword,
 };

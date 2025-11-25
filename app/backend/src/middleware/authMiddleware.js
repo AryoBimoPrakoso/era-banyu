@@ -1,84 +1,76 @@
-// src/middleware/authMiddleware.js
-
-// Pastikan lokasi file ini adalah src/middleware/authMiddleware.js
-// dan pastikan semua rute mengimpornya dengan path yang benar: 
-// require('../middleware/authMiddleware')
+// src/middleware/authMiddleware.js - VERSI FINAL (Menggunakan Variabel Lingkungan)
 
 const jwt = require('jsonwebtoken');
+const { UnauthorizedError, ForbiddenError } = require('../utils/customError'); 
 
-// Catatan: Asumsikan process.env.JWT_SECRET sudah dimuat melalui dotenv di server.js
-const JWT_SECRET = process.env.JWT_SECRET;
-
-/**
- * Middleware untuk memverifikasi JWT token dan mengautentikasi pengguna.
- * Menetapkan req.user = { id, role } jika token valid.
- */
-const authenticateToken = (req, res, next) => {
-    // 1. Ambil token dari header 'Authorization'. Formatnya: "Bearer <token>"
-    const authHeader = req.headers.authorization;
+// =======================================
+// 1. Middleware: Verifikasi Token (Otentikasi)
+// =======================================
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
     
-    // Periksa format header: "Bearer <token>"
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        // 401 Unauthorized: Format token tidak valid atau tidak ditemukan
-        return res.status(401).json({ 
-            error: 'Akses ditolak. Format token tidak valid atau tidak ditemukan.' 
-        });
+        return next(new UnauthorizedError('Akses ditolak. Token tidak ditemukan atau format tidak valid. Gunakan format: Bearer <token>.'));
+    }
+    
+    const token = authHeader.split(' ')[1];
+
+    if (!process.env.JWT_SECRET) {
+        console.error("Kesalahan Konfigurasi: Variabel lingkungan JWT_SECRET UNDEFINED atau tidak dimuat!");
+        return next(new UnauthorizedError('Kesalahan Server: Kunci rahasia otentikasi tidak ditemukan.'));
     }
 
-    const token = authHeader.split(' ')[1]; // Ambil token
-
-    // 2. Verifikasi token
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) {
-            // Tentukan jenis error secara spesifik untuk respons yang lebih baik
-            let errorMessage = 'Token tidak valid.';
-            let statusCode = 403; // Forbidden
-            
-            if (err.name === 'TokenExpiredError') {
-                errorMessage = 'Token kedaluwarsa. Silakan login kembali.';
-                statusCode = 401; // Unauthorized (butuh login baru)
-            } else if (err.name === 'JsonWebTokenError') {
-                 errorMessage = 'Token tidak diformat dengan benar.';
-            }
-
-            // Menggunakan 401 untuk token kedaluwarsa, 403 untuk token salah
-            return res.status(statusCode).json({ error: errorMessage });
-        }
+    // 2. Verifikasi token menggunakan variabel lingkungan
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // 3. Token valid, simpan payload user (id, role) di objek request
-        // Payload berisi { id: userId, role: userRole }
-        req.user = decoded; 
-        
-        // Lanjutkan ke handler route berikutnya
+        req.admin = decoded; 
         next();
-    });
+    } catch (err) {
+        // Token tidak valid (tanda tangan salah, kunci salah, atau kedaluwarsa).
+        return next(new UnauthorizedError('Token tidak valid atau kedaluwarsa.'));
+    }
 };
 
-/**
- * Middleware untuk membatasi akses berdasarkan peran (role).
- * Contoh penggunaan: authorizeRole('admin')
- */
-const authorizeRole = (requiredRole) => {
+// =======================================
+// 2. Middleware Utility: Pembatas Akses Berdasarkan Peran (RBAC)
+// =======================================
+const authorizeRoles = (...allowedRoles) => {
+    // Normalisasi allowedRoles menjadi huruf kecil untuk perbandingan yang konsisten
+    const normalizedAllowedRoles = allowedRoles.map(role => role.toLowerCase());
+
     return (req, res, next) => {
-        // Memastikan authenticateToken sudah berjalan dan req.user tersedia
-        if (!req.user || !req.user.role) {
-            // Jika ini terjadi, berarti ada masalah di urutan middleware di route
-            console.error('ERROR Otorisasi: req.user atau role tidak ditemukan.');
-            return res.status(401).json({ error: 'Tidak terotentikasi. Data pengguna hilang.' });
+        if (!req.admin || !req.admin.role) {
+            // Ini terjadi jika verifyToken tidak dipanggil atau gagal (walaupun seharusnya tidak)
+            return next(new ForbiddenError('Akses Ditolak. Informasi otentikasi (Token) belum terverifikasi.'));
         }
 
-        // Cek peran
-        if (req.user.role !== requiredRole) {
-            // 403 Forbidden: Pengguna tidak memiliki izin yang diperlukan
-            return res.status(403).json({ error: `Akses dilarang. Hanya peran '${requiredRole}' yang diizinkan.` });
+        // Ambil role dari token dan normalisasi ke huruf kecil
+        const adminRole = req.admin.role.toLowerCase(); 
+
+        if (!normalizedAllowedRoles.includes(adminRole)) {
+            const roleList = allowedRoles.join(', ');
+            return next(new ForbiddenError(`Akses Ditolak. Peran Anda (${req.admin.role}) tidak diizinkan untuk mengakses fitur ini. Diperlukan peran: ${roleList}.`));
         }
 
-        // Pengguna memiliki peran yang tepat
         next();
     };
 };
 
+// =======================================
+// 3. Middleware Role Spesifik (Menggunakan Array Middleware)
+// =======================================
+// Memastikan verifyToken selalu dijalankan SEBELUM authorizeRoles
+const verifyAdmin = [verifyToken, authorizeRoles('editor', 'superadmin')];
+const verifySuperAdmin = [verifyToken, authorizeRoles('superadmin')];
+
+
+// =======================================
+// Export Module
+// =======================================
 module.exports = {
-    authenticateToken,
-    authorizeRole,
+    verifyToken, 
+    verifyAdmin, 
+    verifySuperAdmin, 
+    authorizeRoles 
 };

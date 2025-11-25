@@ -2,48 +2,54 @@
 
 const express = require('express');
 const router = express.Router();
-const productController = require('../controllers/productController');
-const { authenticateToken, authorizeRole } = require('../middleware/authMiddleware');
 
-// ==========================================================
-// RUTE PUBLIK (TIDAK MEMERLUKAN LOGIN)
-// ==========================================================
+// Import Controller
+const productController = require('../controllers/productController'); 
 
-// GET /api/products/
-// Mengambil semua produk (untuk tampilan di website/aplikasi)
-router.get('/', productController.getAllProducts);
+// PENTING: Import kedua middleware untuk verifikasi token dan otorisasi peran
+const { verifyAdmin, authorizeRoles } = require('../middleware/authMiddleware'); 
 
-// GET /api/products/:id
-// Mengambil produk berdasarkan ID
-router.get('/:id', productController.getProductById);
+// Daftar peran
+const OPERATIONAL_ROLES = ['SuperAdmin', 'editor'];
+const SUPERADMIN_ROLE = ['SuperAdmin'];
 
-// ==========================================================
-// RUTE ADMIN (MEMERLUKAN AUTHENTIKASI DAN PERAN 'admin')
-// ==========================================================
 
-// POST /api/products/
-// Membuat produk baru. Membutuhkan token yang valid DAN peran 'admin'.
-router.post('/', 
-    authenticateToken, 
-    authorizeRole('admin'), 
-    productController.createProduct
-);
+// ===================================
+// PUBLIC ROUTES
+// Rute ini tidak terproteksi dan melayani customer
+// ===================================
+// GET /api/v1/products
+router.get('/', productController.getPublicProducts);
+// GET /api/v1/products/:id 
+router.get('/:id', productController.getProductById); 
 
-// PUT /api/products/:id
-// Memperbarui produk berdasarkan ID. Membutuhkan token yang valid DAN peran 'admin'.
-router.put('/:id', 
-    authenticateToken, 
-    authorizeRole('admin'), 
-    productController.updateProduct
-);
 
-// DELETE /api/products/:id
-// Menghapus produk berdasarkan ID. Membutuhkan token yang valid DAN peran 'admin'.
-router.delete('/:id', 
-    authenticateToken, 
-    authorizeRole('admin'), 
-    productController.deleteProduct
-);
+// ===================================
+// ADMIN ROUTES (PROTECTED)
+// Catatan: Semua route di bawah ini akan diakses melalui prefix /api/v1/admin/products
+// ===================================
 
+// Middleware diterapkan untuk semua rute admin di bawah ini (Verifikasi Token Wajib)
+router.use(verifyAdmin); 
+
+// 1. CREATE: POST /api/v1/admin/products
+// Hanya SuperAdmin yang dapat membuat produk baru
+router.post('/', authorizeRoles(...OPERATIONAL_ROLES), productController.createProduct); 
+
+// 2. READ All: GET /api/v1/admin/products
+// Boleh diakses oleh Admin Operasional
+router.get('/', authorizeRoles(...OPERATIONAL_ROLES), productController.getAllProductsAdmin); 
+
+// 3. READ One: GET /api/v1/admin/products/:id
+// Boleh diakses oleh Admin Operasional
+router.get('/:id', authorizeRoles(...OPERATIONAL_ROLES), productController.getProductById); 
+
+// 4. UPDATE: PUT /api/v1/admin/products/:id
+// Hanya SuperAdmin yang dapat mengedit produk
+router.put('/:id', authorizeRoles(...SUPERADMIN_ROLE), productController.updateProduct); 
+
+// 5. DELETE: DELETE /api/v1/admin/products/:id
+// Hanya SuperAdmin yang dapat menghapus produk
+router.delete('/:id', authorizeRoles(...SUPERADMIN_ROLE), productController.deleteProduct); 
 
 module.exports = router;
