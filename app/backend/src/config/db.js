@@ -1,49 +1,38 @@
-// src/config/db.js (Koneksi Firebase Firestore)
+// src/config/db.js
 
-// Mengimpor modul yang dibutuhkan
 const admin = require('firebase-admin');
-const path = require('path'); 
 
-// 1. Ambil path file kunci dari variabel lingkungan (.env)
-const serviceAccountPathRelative = process.env.FIREBASE_SERVICE_ACCOUNT_PATH; 
+// Jalur ke file kredensial Service Account Firebase Anda.
+// Sesuaikan jalur ini berdasarkan lokasi file JSON Anda relatif terhadap file db.js
+// Contoh: src/config/db.js -> ../../firebase-adminsdk.json
+const serviceAccount = require('../../firebase-adminsdk.json'); 
 
-// Tentukan path ke root folder backend (tempat server.js dan file JSON berada)
-// Karena db.js ada di src/config, kita naik dua level (../..)
-const rootDir = path.resolve(__dirname, '..', '..');
-
-// 2. Tentukan PATH ABSOLUT untuk file JSON
-// Ini menggabungkan root direktori backend dengan path relatif dari .env
-const absolutePath = path.join(rootDir, serviceAccountPathRelative);
-
-// Menggunakan try...catch untuk menangani error 'Cannot find module' dengan lebih informatif
-try {
-    // 3. Gunakan PATH ABSOLUT untuk me-require file service account JSON
-    const serviceAccount = require(absolutePath);
-
-    // 4. Konfigurasi Admin SDK
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: process.env.FIREBASE_PROJECT_ID, 
-    });
-
-    // 5. Ekspor instance Firestore
-    const db = admin.firestore();
-
-    console.log('✅ Koneksi Firebase Firestore berhasil diinisialisasi.');
-
-    // --- PERBAIKAN KRUSIAL DI SINI ---
-    // Ekspor 'db' dan 'admin' sebagai properti objek agar bisa di-destructuring
-    module.exports = {
-        db, 
-        admin // Ekspor juga admin karena dibutuhkan di controller
-    };
-    
-} catch (error) {
-    // Menampilkan pesan error yang jelas jika file tidak ditemukan
-    console.error('❌ GAGAL MENGINISIALISASI FIREBASE ADMIN SDK!');
-    console.error(`Penyebab: File kunci Service Account tidak ditemukan di path: ${absolutePath}`);
-    console.error("Pastikan file JSON Anda bernama 'firebase-adminsdk.json' dan berada di root /app/backend/.");
-    
-    // Keluar dari aplikasi dengan kode error
-    process.exit(1); 
+/**
+ * Inisialisasi Firebase Admin SDK.
+ * Memastikan SDK hanya diinisialisasi sekali, mencegah error pada hot-reload.
+ */
+if (!admin.apps.length) {
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+        });
+        console.log("Firebase Admin SDK berhasil diinisialisasi.");
+    } catch (error) {
+        console.error("Gagal menginisialisasi Firebase Admin SDK:", error.message);
+        // Penting: Keluar dari proses jika inisialisasi DB gagal total
+        // process.exit(1); 
+    }
 }
+
+// Dapatkan instance Firestore
+const db = admin.firestore();
+
+// Dapatkan instance Auth dan lain-lain jika diperlukan dari SDK
+const auth = admin.auth(); 
+
+// Mengekspor instance Firestore, Auth, dan Admin SDK itu sendiri
+module.exports = { 
+    db,     // Instance Firestore
+    admin,  // Admin SDK (digunakan untuk verifikasi token)
+    auth    // Instance Auth (jika perlu operasi server-side Auth)
+};

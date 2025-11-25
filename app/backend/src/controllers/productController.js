@@ -1,240 +1,203 @@
 // src/controllers/productController.js
 
-const { customError } = require('../utils/customError');
-// FIX KRUSIAL: Import db (instance Firestore) dan admin (Admin SDK) dari config
 const { db, admin } = require('../config/db'); 
+const { NotFoundError, BadRequestError } = require('../utils/customError'); 
+const PRODUCT_COLLECTION = 'products';
 
-// Definisikan referensi ke koleksi 'products'
-const productsCollection = db.collection('products');
-
-
-// ==========================================================
-// FUNGSI UTILITY
-// ==========================================================
+// ===================================
+// PUBLIC API: GET /api/v1/products
+// ===================================
 
 /**
- * Validasi apakah input adalah angka valid (float) dan non-negatif/positif.
- * Melempar customError jika gagal.
+ * Mengambil semua produk yang aktif (isActive: true) untuk tampilan publik.
+ * GET /api/v1/products
  */
-const validatePriceAndStock = (price, stock, next) => {
-    
-    const numericPrice = price !== undefined ? parseFloat(price) : undefined;
-    const numericStock = stock !== undefined ? parseInt(stock) : undefined;
-
-    if (numericPrice !== undefined) {
-        if (isNaN(numericPrice) || numericPrice <= 0) {
-            return next(customError('Harga produk harus berupa angka positif yang valid.', 400));
-        }
-    }
-    
-    if (numericStock !== undefined) {
-        // Cek NaN, non-negatif, dan integer (karena stock harus bulat)
-        if (isNaN(numericStock) || numericStock < 0 || !Number.isInteger(numericStock)) {
-            return next(customError('Stok produk harus berupa bilangan bulat positif atau nol.', 400));
-        }
-    }
-    
-    // Kembalikan nilai yang sudah diparsing
-    return { numericPrice, numericStock };
-};
-
-// ==========================================================
-// RUTE PUBLIK (READ)
-// ==========================================================
-
-// GET /api/products/
-const getAllProducts = async (req, res, next) => {
+exports.getPublicProducts = async (req, res, next) => {
     try {
-        // Mendapatkan semua dokumen dari koleksi
-        const snapshot = await productsCollection.get(); 
-        
-        if (snapshot.empty) {
-            // Mengembalikan array kosong jika tidak ada produk
-            return res.status(200).json([]);
-        }
+        // Query hanya mengambil produk yang aktif
+        const snapshot = await db.collection(PRODUCT_COLLECTION)
+            .where('isActive', '==', true)
+            .get();
 
-        let products = snapshot.docs.map(doc => ({
+        const products = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
 
-        // Sorting di memori berdasarkan nama secara ascending (praktik terbaik Firestore)
-        // Perhatian: properti created_at/updated_at akan berupa Timestamp objek, bukan Date
-        products.sort((a, b) => a.name.localeCompare(b.name));
-
         res.status(200).json(products);
-    } catch (err) {
-        console.error('Error saat mengambil semua produk dari Firestore:', err);
-        next(customError('Gagal mengambil data produk dari database.', 500));
+    } catch (error) {
+        next(error); // Teruskan ke error middleware
     }
 };
 
-// GET /api/products/:id
-const getProductById = async (req, res, next) => {
-    const { id } = req.params;
-    try {
-        const docSnapshot = await productsCollection.doc(id).get(); 
+// ===================================
+// ADMIN API: CRUD (Membutuhkan Token)
+// ===================================
 
-        if (!docSnapshot.exists) {
-            return next(customError('Produk tidak ditemukan.', 404));
-        }
-        
-        res.status(200).json({ 
-            id: docSnapshot.id,
-            ...docSnapshot.data()
-        });
-    } catch (err) {
-        console.error(`Error saat mengambil produk ID ${id} dari Firestore:`, err);
-        next(customError('Gagal mengambil data produk.', 500));
-    }
-};
-
-// ==========================================================
-// RUTE ADMIN (CREATE, UPDATE, DELETE)
-// ==========================================================
-
-// POST /api/products/
-const createProduct = async (req, res, next) => {
+// 1. CREATE: POST /api/v1/admin/products
+/**
+ * Membuat produk baru di Firestore.
+ */
+exports.createProduct = async (req, res, next) => {
     const { 
         name, 
-        description, 
-        price, 
-        stock,
-        image_url, 
+        sku, 
+        minOrderQuantity, 
+        unit,
+        price,
         category, 
-        is_customizable 
+        currentStock, 
+        minStockLevel, 
+        specification, 
+        description, 
+        imageUrl 
     } = req.body;
     
-    // 1. Validasi input minimal
-    if (!name || price === undefined || stock === undefined) { 
-        return next(customError('Nama, harga, dan stock wajib diisi.', 400)); 
+    // Validasi dasar
+    if (!name || !sku || !minOrderQuantity || !unit || !price) {
+        return next(new BadRequestError('Nama Produk, SKU, Kuantitas Minimum Order, Unit, dan Harga wajib diisi.'));
     }
 
-    // 2. Validasi Tipe Data
-    const validationResult = validatePriceAndStock(price, stock, next);
-    if (!validationResult) return; 
-
-    const { numericPrice, numericStock } = validationResult;
-    
-    // 3. Siapkan Objek Data Firestore
-    const newProductData = {
-        name, 
-        description: description || '', 
-        price: numericPrice, 
-        stock: numericStock, 
-        image_url: image_url || '',
-        category: category || null, 
-        is_customizable: is_customizable === undefined ? false : is_customizable,
-        // FIX: Menggunakan Server Timestamp
-        created_at: admin.firestore.FieldValue.serverTimestamp(), 
-        updated_at: admin.firestore.FieldValue.serverTimestamp(), 
-    };
-    
     try {
-        // Menggunakan .add() untuk menambahkan dokumen baru
-        const docRef = await productsCollection.add(newProductData); 
+        // Pengecekan Duplikasi SKU (penting untuk inventaris)
+        const existingSku = await db.collection(PRODUCT_COLLECTION)
+            .where('sku', '==', sku)
+            .limit(1)
+            .get();
         
-        // Ambil data yang baru disimpan untuk mendapatkan timestamp yang valid (opsional, tapi lebih baik)
-        const newDoc = await docRef.get();
+        if (!existingSku.empty) {
+            return next(new BadRequestError(`SKU Produk ${sku} sudah terdaftar. Gunakan SKU yang unik.`));
+        }
+
+        // Mapping dan Konversi Angka
+        const newProduct = {
+            name: name, 
+            sku: sku,
+            category: category || 'General', 
+            minOrderQuantity: Number(minOrderQuantity), 
+            unit: unit,
+            price: Number(price), 
+            
+            // Field Inventaris Default
+            currentStock: Number(currentStock) || 0,
+            minStockLevel: Number(minStockLevel) || 0, 
+
+            specification: specification || '',
+            description: description || '',
+            imageUrl: imageUrl || '',
+            isActive: true, // Default aktif
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        const docRef = await db.collection(PRODUCT_COLLECTION).add(newProduct);
 
         res.status(201).json({ 
-            message: 'Produk berhasil dibuat.',
-            product: { id: docRef.id, ...newDoc.data() }
+            success: true,
+            message: 'Produk berhasil ditambahkan.', 
+            productId: docRef.id,
+            // Kembalikan data dengan ID dokumen baru
+            product: { id: docRef.id, ...newProduct } 
         });
-    } catch (err) {
-        console.error('Error saat membuat produk baru di Firestore:', err);
-        next(customError('Gagal membuat produk baru.', 500));
+    } catch (error) {
+        next(error); 
     }
 };
 
-// PUT /api/products/:id
-const updateProduct = async (req, res, next) => {
-    const { id } = req.params;
-    const { price, stock } = req.body; 
-    const updates = req.body; // Ambil semua data update
+// 2. READ All (Admin View): GET /api/v1/admin/products
+/**
+ * Mengambil semua produk (aktif dan non-aktif) untuk dashboard admin.
+ */
+exports.getAllProductsAdmin = async (req, res, next) => {
+    try {
+        // Ambil semua produk, termasuk yang tidak aktif
+        const snapshot = await db.collection(PRODUCT_COLLECTION).get();
+        
+        const products = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
 
-    // 1. Validasi pembaruan minimal
-    if (Object.keys(updates).length === 0) {
-        return next(customError('Setidaknya satu field harus diisi untuk pembaruan.', 400));
+        res.status(200).json(products);
+    } catch (error) {
+        next(error);
     }
+};
 
-    // 2. Validasi Tipe Data
-    let numericPrice, numericStock;
-    if (price !== undefined || stock !== undefined) {
-        const validationResult = validatePriceAndStock(price, stock, next);
-        if (!validationResult) return;
-        numericPrice = validationResult.numericPrice;
-        numericStock = validationResult.numericStock;
+// 3. READ One: GET /api/v1/admin/products/:id
+/**
+ * Mengambil detail produk berdasarkan ID.
+ */
+exports.getProductById = async (req, res, next) => {
+    try {
+        const doc = await db.collection(PRODUCT_COLLECTION).doc(req.params.id).get();
+        
+        if (!doc.exists) {
+            return next(new NotFoundError('Produk tidak ditemukan.'));
+        }
+
+        res.status(200).json({ id: doc.id, ...doc.data() });
+    } catch (error) {
+        next(error);
     }
+};
+
+// 4. UPDATE: PUT /api/v1/admin/products/:id
+/**
+ * Memperbarui data produk.
+ */
+exports.updateProduct = async (req, res, next) => {
+    const productId = req.params.id;
     
+    let updateData = {
+        ...req.body,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    // Konversi nilai menjadi angka jika ada
+    ['minOrderQuantity', 'price', 'currentStock', 'minStockLevel'].forEach(field => {
+        if (updateData[field] !== undefined) {
+            updateData[field] = Number(updateData[field]);
+        }
+    });
+    
+    // Hapus ID dan SKU dari body (karena biasanya tidak diizinkan diubah)
+    delete updateData.id;
+    delete updateData.sku;
+
     try {
-        // 3. Siapkan Objek Pembaruan
-        // FIX: Menggunakan Server Timestamp
-        const updateData = { updated_at: admin.firestore.FieldValue.serverTimestamp() };
+        const docRef = db.collection(PRODUCT_COLLECTION).doc(productId);
+        const doc = await docRef.get();
 
-        // Pindahkan data body yang valid ke updateData
-        for (const key in updates) {
-            if (updates[key] !== undefined) {
-                 updateData[key] = updates[key];
-            }
+        if (!doc.exists) {
+            return next(new NotFoundError('Produk tidak ditemukan.'));
         }
 
-        // Terapkan nilai numerik yang sudah divalidasi
-        if (numericPrice !== undefined) updateData.price = numericPrice;
-        if (numericStock !== undefined) updateData.stock = numericStock;
-        
-        // 4. Periksa apakah dokumen ada sebelum diperbarui
-        const docRef = productsCollection.doc(id);
-        const docSnapshot = await docRef.get();
-        
-        if (!docSnapshot.exists) {
-            return next(customError('Produk tidak ditemukan.', 404));
-        }
-
-        // 5. Update
         await docRef.update(updateData);
-        
-        // Ambil data terbaru setelah update
-        const updatedDoc = await docRef.get();
-        
-        res.status(200).json({ 
-            message: 'Produk berhasil diperbarui.',
-            product: { id: updatedDoc.id, ...updatedDoc.data() }
-        });
-
-    } catch (err) {
-        console.error(`Error saat memperbarui produk ID ${id} di Firestore:`, err);
-        next(customError('Gagal memperbarui produk.', 500));
+        res.status(200).json({ success: true, message: 'Produk berhasil diperbarui.' });
+    } catch (error) {
+        next(error); 
     }
 };
 
-// DELETE /api/products/:id
-const deleteProduct = async (req, res, next) => {
-    const { id } = req.params;
-
+// 5. DELETE: DELETE /api/v1/admin/products/:id
+/**
+ * Menghapus produk secara permanen (Hard Delete).
+ */
+exports.deleteProduct = async (req, res, next) => {
     try {
-        const docRef = productsCollection.doc(id);
-        const docSnapshot = await docRef.get();
-        
-        if (!docSnapshot.exists) {
-            return next(customError('Produk tidak ditemukan.', 404));
+        const docRef = db.collection(PRODUCT_COLLECTION).doc(req.params.id);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            // Beri respons sukses jika produk sudah tidak ada
+            return res.status(200).json({ success: true, message: 'Produk tidak ditemukan (sudah terhapus).' });
         }
-
-        // Hard Delete
-        await docRef.delete();
         
-        res.status(200).json({ message: 'Produk berhasil dihapus.' });
-    } catch (err) {
-        console.error(`Error saat menghapus produk ID ${id} dari Firestore:`, err);
-        next(customError('Gagal menghapus produk.', 500));
+        await docRef.delete();
+
+        res.status(200).json({ success: true, message: 'Produk berhasil dihapus secara permanen.' });
+    } catch (error) {
+        next(error);
     }
-};
-
-
-module.exports = {
-    getAllProducts,
-    getProductById,
-    createProduct,
-    updateProduct,
-    deleteProduct,
 };
