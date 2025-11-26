@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "./firebase";
-import localFont from "next/font/local";
+import localFont from "next/font/local";  
+
+// Komponen 
 import Navbar from "./components/Navbar";
+import Chatbot from "./components/Chatbot";
+
 
 const helveticaNow = localFont({
   src:[
@@ -36,12 +39,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{scrollBehavior:'smooth'}}>
       <body
         className={`${helveticaNow.className}`}
       >
         <Navbar/>
         {children}
+        <Chatbot/>
       </body>
     </html>
   );
