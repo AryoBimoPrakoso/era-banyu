@@ -1,5 +1,6 @@
 import Image from "next/image";
 import React from "react";
+import Link from "next/link";
 
 // SVG
 import EraBanyuLogo from "@/public/assets/svg/logo.svg";
@@ -32,10 +33,11 @@ const Footer = () => {
           <div className="flex flex-col gap-5">
             <h1 className="font-bold text-lg items-center">Peta Situs</h1>
             <ul className="flex flex-col gap-4">
-              <li className="flex gap-2 items-center">Beranda</li>
-              <li className="flex gap-2 items-center">Tentang Kami</li>
-              <li className="flex gap-2 items-center">Produk</li>
-              <li className="flex gap-2 items-center">FAQ</li>
+              <Link href="/" className="flex gap-2 items-center">Beranda</Link>
+              <Link href="/" className="flex gap-2 items-center">Tentang Kami</Link>
+              <Link href="/produk" className="flex gap-2 items-center">Produk</Link>
+              <Link href="/FAQ" className="flex gap-2 items-center">FAQ</Link>
+
             </ul>
           </div>
           <div className="flex flex-col gap-5">

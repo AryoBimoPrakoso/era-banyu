@@ -54,7 +54,7 @@ const Accordion = () => {
         <div key={index} className="py-3">
           <button
             onClick={() => toggle(index)}
-            className="flex items-center justify-between w-full text-left bg-[#F2F0EF] py-2 px-4 rounded-t-md drop-shadow-sm font-light text-lg" 
+            className="flex items-center justify-between w-full text-left bg-[#F2F0EF] py-2 px-4 rounded-t-md drop-shadow-sm font-light text-sm lg:text-lg" 
           >
             {ask.pertanyaan}
             <span>
@@ -66,7 +66,7 @@ const Accordion = () => {
               open === index ? "max-h-40" : "max-h-0"
             }`}
           >
-            <p className="py-2 px-4 font-light text-lg">{ask.jawaban}</p>
+            <p className="py-2 px-4 font-light text-sm lg:text-lg">{ask.jawaban}</p>
           </div>
         </div>
       ))}

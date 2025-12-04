@@ -5,6 +5,7 @@ import localFont from "next/font/local";
 // Komponen 
 import Navbar from "./components/Navbar";
 import Chatbot from "./components/Chatbot";
+import Footer from "./components/Footer";
 
 
 const helveticaNow = localFont({
@@ -33,6 +34,12 @@ const helveticaNow = localFont({
   variable: '--font-helvetica-now'
 })
 
+export const metadata: Metadata = {
+  title: "Era Banyu Segara",
+  description: "Pt. Era Banyu Segara",
+};
+
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -46,6 +53,7 @@ export default function RootLayout({
         <Navbar/>
         {children}
         <Chatbot/>
+        <Footer/>
       </body>
     </html>
   );

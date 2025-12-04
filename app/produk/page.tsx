@@ -24,7 +24,7 @@ interface Produk {
 
 const Produk = () => {
   return (
-    <div className="overflow-hidden">
+    <div className="overflow-hidden h-screen">
       {/* Banner */}
       <div className="w-full">
         <Image
@@ -36,7 +36,7 @@ const Produk = () => {
 
       {/* Grid Produk */}
       <div className="container mx-auto py-16">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-10 px-8 justify-center">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 px-8 justify-center">
           {DummyProduk.map((product) => (
             <div key={product.id}>
               <div className="bg-[#E6E6E6] w-full rounded-xl shadow-sm p-3 flex flex-col gap-2 md:gap-4">
@@ -44,20 +44,20 @@ const Produk = () => {
                 <Image
                   src={dummyProdukImg}
                   alt="Dummy Produk"
-                  className="h-24 w-full md:h-40 object-cover rounded-md"
+                  className="h-24 w-full lg:h-64 object-cover rounded-md"
                 />
 
                 {/* TEXT */}
                 <div>
-                  <h2 className="text-xs md:text-base font-medium">{product.title}</h2>
-                  <h2 className="text-sm md:text-lg font-semibold">
+                  <h2 className="text-xs lg:text-base font-medium">{product.title}</h2>
+                  <h2 className="text-sm lg:text-lg font-semibold">
                     Mulai Rp {product.price.toLocaleString()}
                   </h2>
                 </div>
 
                 {/* BUTTON */}
                 <Link href={`/produk/${toSlug(product.id, product.title)}`}>
-                  <button className="w-full md:py-2 bg-primary text-white hover:brightness-75 duration-300 rounded-md text-sm">
+                  <button className="w-full py-1 lg:py-2 bg-primary text-white hover:brightness-75 duration-300 rounded-md text-sm">
                     Lihat Produk
                   </button>
                 </Link>
