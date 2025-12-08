@@ -1,5 +1,5 @@
 import React from "react";
-import Accordion from "../components/Accordion";
+import Accordion from "../../components/client/Accordion";
 import emailLogo from "@/public/assets/svg/email.svg";
 import teleponLogo from "@/public/assets/svg/telepon.svg";
 import Image from "next/image";
