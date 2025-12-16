@@ -1,6 +1,6 @@
 import React from 'react'
 
-const EditKatalog = () => {
+const EditProduct = () => {
   return (
     <div>
       ini edit page
@@ -8,4 +8,4 @@ const EditKatalog = () => {
   )
 }
 
-export default EditKatalog
+export default EditProduct

@@ -1,7 +1,7 @@
 // app/(admin)/layout.tsx
 import React from "react";
 import type { Metadata } from "next";
-import AdminProtectedLayout from "../components/admin/adminProtectedLayout";
+import AdminProtectedLayout from "../components/admin/AdminProtectedLayout";
 
 // Sekarang Anda BISA menggunakan metadata di sini
 export const metadata: Metadata = {

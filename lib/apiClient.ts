@@ -75,3 +75,37 @@ export async function postApi(endpoint: string, body: any, requireAuth: boolean 
         throw error;
     }
 }
+/**
+ * Fungsi utilitas untuk menghapus data (DELETE).
+ */
+export async function deleteApi(endpoint: string, requireAuth: boolean = false) {
+    const url = `${API_BASE_URL}/${endpoint}`;
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+
+    if (requireAuth) {
+        const token = localStorage.getItem('token');
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+    }
+
+    try {
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || `Gagal menghapus data. Status: ${response.status}`);
+        }
+
+        return data;
+    } catch (error) {
+        console.error("Error API Call (DELETE):", error);
+        throw error;
+    }
+}
