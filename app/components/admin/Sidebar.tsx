@@ -68,7 +68,7 @@ const Sidebar = () => {
       <div className="px-6">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-4 px-5 py-3 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200 group"
+          className="flex items-center gap-4 px-5 py-3 w-full text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200 group"
         >
           <svg
             className="w-5 h-5 group-hover:scale-110 transition-transform"

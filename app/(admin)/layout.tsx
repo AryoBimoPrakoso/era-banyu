@@ -17,8 +17,8 @@ export default function AdminLayout({
 }) {
   return (
     // Kita bungkus children dengan Client Component yang berisi logika auth
-    <MobileBlocker>
+    // <MobileBlocker>
       <AdminProtectedLayout>{children}</AdminProtectedLayout>
-    </MobileBlocker>
+    // </MobileBlocker>
   );
 }

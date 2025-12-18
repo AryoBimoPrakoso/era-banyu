@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getApi } from '@/lib/apiClient';
+import { getApi, postApi, putApi } from '@/lib/apiClient'; // Gunakan helper yang sudah ada
 
 interface OrderForm {
   nama: string;
   kontak: string;
   detail: string;
   jumlah: string;
-  total: string;
+  total: string | number; 
   tanggalPesan: string;
   tanggalPembayaran: string;
   status: string;
 }
 
-export default function EditLaporanPage() {
+const EditLaporanContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -32,36 +32,44 @@ export default function EditLaporanPage() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState('');
 
+  // 1. Fetch Data jika Mode Edit
   useEffect(() => {
     if (id) {
+      const fetchOrder = async () => {
+        setFetching(true);
+        try {
+          // GET /api/v1/admin/orders/:id
+          const data = await getApi(`admin/orders/${id}`, true);
+          
+          setForm({
+            nama: data.nama || '',
+            kontak: data.kontak || '',
+            detail: data.detail || '',
+            jumlah: data.jumlah || '',
+            total: data.total || '', // Load sebagai number/string
+            tanggalPesan: data.tanggalPesan || '',
+            tanggalPembayaran: data.tanggalPembayaran || '',
+            status: data.status || 'Diproses'
+          });
+        } catch (err: any) {
+          setError('Gagal memuat data order: ' + err.message);
+        } finally {
+          setFetching(false);
+        }
+      };
       fetchOrder();
     }
   }, [id]);
 
-  const fetchOrder = async () => {
-    try {
-      const data = await getApi(`admin/orders/${id}`, true);
-      setForm({
-        nama: data.nama || '',
-        kontak: data.kontak || '',
-        detail: data.detail || '',
-        jumlah: data.jumlah || '',
-        total: data.total?.toString() || '',
-        tanggalPesan: data.tanggalPesan || '',
-        tanggalPembayaran: data.tanggalPembayaran || '',
-        status: data.status || 'Diproses'
-      });
-    } catch (err) {
-      setError('Gagal memuat data order');
-    }
-  };
-
+  // 2. Handle Change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // 3. Handle Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -70,30 +78,29 @@ export default function EditLaporanPage() {
     try {
       const payload = {
         ...form,
-        total: parseFloat(form.total) || 0
+        total: Number(form.total) || 0 // Pastikan kirim Number ke backend
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'}/admin/orders${id ? `/${id}` : ''}`, {
-        method: id ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+      if (id) {
+        // Mode Edit: PUT
+        await putApi(`admin/orders/${id}`, payload, true);
+        alert("Data berhasil diperbarui!");
+      } else {
+        // Mode Buat: POST
+        await postApi(`admin/orders`, payload, true);
+        alert("Data berhasil ditambahkan!");
       }
 
       router.push('/laporan');
     } catch (err: any) {
-      setError(err.message);
+      console.error(err);
+      setError(err.message || "Terjadi kesalahan saat menyimpan.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) return <div className="p-10 text-center">Memuat data...</div>;
 
   return (
     <div className="p-6 lg:p-10 bg-gray-50 min-h-screen">
@@ -105,25 +112,27 @@ export default function EditLaporanPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium mb-2">Nama</label>
+              <label className="block text-sm font-medium mb-2">Nama Pelanggan</label>
               <input
                 type="text"
                 name="nama"
                 value={form.nama}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg focus:ring-1 focus:ring-black outline-none"
+                placeholder="Contoh: Budi Santoso"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Kontak</label>
+              <label className="block text-sm font-medium mb-2">Kontak / HP</label>
               <input
                 type="text"
                 name="kontak"
                 value={form.kontak}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg focus:ring-1 focus:ring-black outline-none"
+                placeholder="0812..."
                 required
               />
             </div>
@@ -135,7 +144,8 @@ export default function EditLaporanPage() {
                 name="detail"
                 value={form.detail}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg focus:ring-1 focus:ring-black outline-none"
+                placeholder="Contoh: Karton Box Ukuran 20x20"
                 required
               />
             </div>
@@ -147,19 +157,21 @@ export default function EditLaporanPage() {
                 name="jumlah"
                 value={form.jumlah}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg focus:ring-1 focus:ring-black outline-none"
+                placeholder="Contoh: 1000 pcs"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Total (Rp)</label>
+              <label className="block text-sm font-medium mb-2">Total Harga (Rp)</label>
               <input
                 type="number"
                 name="total"
                 value={form.total}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg focus:ring-1 focus:ring-black outline-none"
+                placeholder="4000000"
                 required
               />
             </div>
@@ -171,7 +183,7 @@ export default function EditLaporanPage() {
                 name="tanggalPesan"
                 value={form.tanggalPesan}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg outline-none"
                 required
               />
             </div>
@@ -183,7 +195,7 @@ export default function EditLaporanPage() {
                 name="tanggalPembayaran"
                 value={form.tanggalPembayaran}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg outline-none"
               />
             </div>
 
@@ -193,7 +205,7 @@ export default function EditLaporanPage() {
                 name="status"
                 value={form.status}
                 onChange={handleChange}
-                className="w-full p-3 border rounded-lg"
+                className="w-full p-3 border rounded-lg outline-none"
               >
                 <option value="Diproses">Diproses</option>
                 <option value="Selesai">Selesai</option>
@@ -202,18 +214,18 @@ export default function EditLaporanPage() {
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4 pt-4">
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+              className="px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition"
             >
-              {loading ? 'Menyimpan...' : 'Simpan'}
+              {loading ? 'Menyimpan...' : 'Simpan Data'}
             </button>
             <button
               type="button"
               onClick={() => router.push('/laporan')}
-              className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
             >
               Batal
             </button>
@@ -221,5 +233,14 @@ export default function EditLaporanPage() {
         </form>
       </div>
     </div>
+  );
+};
+
+// Bungkus Suspense agar aman build
+export default function EditLaporanPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <EditLaporanContent />
+    </Suspense>
   );
 }
