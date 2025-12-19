@@ -47,14 +47,24 @@ const Katalog = () => {
 
   // fungsi hapus produk
   const handleDelete = async (id: string) => {
-    if (!confirm("Yakin untuk hapus?")) return;
+    const result = await Swal.fire({
+      title: "Yakin untuk hapus?",
+      text: "Produk yang dihapus tidak bisa dikembalikan",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Ya, hapus",
+      cancelButtonText: "Batal",
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6b7280",
+    });
+
+    if (!result.isConfirmed) return;
 
     try {
-      // Panggil API DELETE /admin/product/:id
       await deleteApi(`admin/products/${id}`, true);
 
-      // refresh data tanpa reload halaman
       await fetchProducts();
+
       Swal.fire({
         title: "Berhasil!",
         text: "Berhasil menghapus produk",
@@ -63,7 +73,7 @@ const Katalog = () => {
     } catch (err: any) {
       Swal.fire({
         title: "Gagal",
-        text: (err.message || "Gagal menghapus produk"),
+        text: err?.message || "Gagal menghapus produk",
         icon: "error",
       });
     }

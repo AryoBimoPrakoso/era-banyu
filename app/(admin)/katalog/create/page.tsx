@@ -50,7 +50,7 @@ const CreateKatalogPage = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle Upload Gambar (Convert to Base64)
+// Handle Upload Gambar (Convert to Base64)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -61,7 +61,9 @@ const CreateKatalogPage = () => {
           text: "Ukuran file terlalu besar (max 2mb)",
           icon: "warning",
         });
-        return;
+        
+        e.target.value = ""; 
+        return; 
       }
 
       const reader = new FileReader();
