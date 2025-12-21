@@ -21,7 +21,7 @@ const Footer = () => {
             </li>
             <li className="flex gap-2 items-center">
               <Image src={teleponLogo} alt="telepon" />
-              081234567899
+              081289505095
             </li>
             <li className="flex gap-2 items-center">
               <Image src={lokasiLogo} alt="lokasi" />
@@ -29,24 +29,23 @@ const Footer = () => {
             </li>
           </ul>
         </div>
-        <div className="flex w-full justify-between">
-          <div className="flex flex-col gap-5">
-            <h1 className="font-bold text-lg items-center">Peta Situs</h1>
-            <ul className="flex flex-col gap-4">
-              <Link href="/" className="flex gap-2 items-center">Beranda</Link>
-              <Link href="/" className="flex gap-2 items-center">Tentang Kami</Link>
-              <Link href="/produk" className="flex gap-2 items-center">Produk</Link>
-              <Link href="/FAQ" className="flex gap-2 items-center">FAQ</Link>
 
-            </ul>
-          </div>
-          <div className="flex flex-col gap-5">
-            <h1 className="font-bold text-lg items-center">Dukungan</h1>
-            <ul className="flex flex-col gap-4">
-              <li className="flex gap-2 items-center">Syarat dan Ketentuan</li>
-              <li className="flex gap-2 items-center">Kebijakan Privasi</li>
-            </ul>
-          </div>
+        <div className="flex flex-col gap-5 md:ml-auto">
+          <h1 className="font-bold text-lg items-center">Peta Situs</h1>
+          <ul className="flex flex-col gap-4">
+            <Link href="/" className="flex gap-2 items-center">
+              Beranda
+            </Link>
+            <Link href="/" className="flex gap-2 items-center">
+              Tentang Kami
+            </Link>
+            <Link href="/produk" className="flex gap-2 items-center">
+              Produk
+            </Link>
+            <Link href="/FAQ" className="flex gap-2 items-center">
+              FAQ
+            </Link>
+          </ul>
         </div>
       </div>
     </div>

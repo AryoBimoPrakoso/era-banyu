@@ -68,7 +68,7 @@ const Barchart = ({ data, title }: Props) => {
             
             <Bar
               dataKey="sales"
-              fill="#000000" // Warna batang hitam sesuai tema
+              fill="#0099A5" // Warna batang hitam sesuai tema
               radius={[4, 4, 0, 0]}
               barSize={40}
               activeBar={<Rectangle fill="#333333" />}

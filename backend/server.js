@@ -76,10 +76,11 @@ app.use(`${API_PREFIX}/admin/auth`, authRoutes);
 // Urutan: verifyToken -> authorizeRoles (implisit di verifyAdmin)
 app.use(`${API_PREFIX}/admin/inventory`, verifyAdmin, inventoryRoutes); 
 
-
 // C. Rute Admin Terproteksi: ORDERS
 app.use(`${API_PREFIX}/admin/orders`, verifyAdmin, orderRoutes);
 
+// Rute publik untuk produk
+app.use(`${API_PREFIX}/products`, productRoutes);
 
 // D. Rute Admin Terproteksi: PRODUK (CRUD)
 app.use(`${API_PREFIX}/admin/products`, verifyAdmin, productRoutes); 

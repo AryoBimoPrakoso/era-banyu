@@ -35,7 +35,7 @@ const Produk = () => {
   const fetchProducts = async () => {
     setIsLoading(true);
     try {
-      const res = await getApi("admin/products", true);
+      const res = await getApi("products", false);
       const dataProduk = res.data || res;
       setProducts(dataProduk);
     } catch (err: any) {
@@ -51,7 +51,7 @@ const Produk = () => {
   }, []);
 
   return (
-    <div className="overflow-hidden h-screen">
+    <div className="overflow-hidden h-full">
       {/* Banner */}
       <div className="w-full">
         <Image
@@ -70,7 +70,7 @@ const Produk = () => {
               <Image
                 src={product.imageUrl}
                 alt="Dummy Produk"
-                className="w-full lg:h-64 object-cover rounded-md"
+                className="w-full h-full object-cover rounded-md"
                 width={24}
                 height={24}
               />

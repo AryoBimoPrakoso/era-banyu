@@ -339,12 +339,7 @@ export default function LaporanPage() {
               ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-10 text-gray-500">
-                    {/* Update pesan ketika kosong */}
-                    Tidak ada data yang sesuai filter (
-                    <strong>
-                      {selectedMonth} {selectedYear}
-                    </strong>
-                    )
+                    Tidak ada data yang sesuai filter 
                   </td>
                 </tr>
               ) : (

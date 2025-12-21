@@ -127,7 +127,7 @@ const ProductDetail = ({ params }: { params: Promise<{ id: string }> }) => {
 
                 {/* WhatsApp Button */}
                 <a
-                  href={`https://wa.me/628123456789?text=Halo,%20saya%20mau%20pesan%20${encodeURIComponent(
+                  href={`https://wa.me/6281289505095?text=Halo,%20saya%20mau%20pesan%20${encodeURIComponent(
                     product.name
                   )}`}
                   target="_blank"

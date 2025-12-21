@@ -13,7 +13,7 @@ const daftarLayananArray = [
 
 const About = () => {
   return (
-    <section id="tentang-kami">
+    <section id="about" className="scroll-mt-24">
       <div className="bg-primary text-white">
         <div className="md:p-14 p-6 py-14 flex flex-col md:flex-row justify-between gap-8">
           <h1 className="text-4xl">Tentang Kami</h1>

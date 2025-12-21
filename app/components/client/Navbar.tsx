@@ -2,15 +2,32 @@
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+// SVG
 import { IoClose } from "react-icons/io5";
 import { AiOutlineMenu } from "react-icons/ai";
-
 import EraBanyuLogo from "@/public/assets/svg/logo.svg";
 import EraBanyuLogoMobile from "@/public/assets/svg/logo-mobile.svg";
 
 const Navbar = () => {
   const [nav, setNav] = useState(false);
   const [shadow, setShadow] = useState(false);
+  const pathname = usePathname();
+
+  const handleScrollToAbout = (
+    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+  ) => {
+    if (pathname === "/") {
+      e.preventDefault();
+
+      const element = document.getElementById("about");
+
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -31,16 +48,18 @@ const Navbar = () => {
         }`}
       >
         <div className="flex px-8 md:px-14 py-4 justify-between items-center">
-          <Image
-            src={EraBanyuLogo}
-            alt="Era Banyu Segara"
-            className="w-64 hidden lg:flex"
-          />
-          <Image
-            src={EraBanyuLogoMobile}
-            alt="Era Banyu Segara"
-            className="w-8 flex lg:hidden order-2"
-          />
+          <Link href="/">
+            <Image
+              src={EraBanyuLogo}
+              alt="Era Banyu Segara"
+              className="w-64 hidden lg:flex"
+            />
+            <Image
+              src={EraBanyuLogoMobile}
+              alt="Era Banyu Segara"
+              className="w-8 flex lg:hidden"
+            />
+          </Link>
 
           {/* Desktop Menu */}
           <div className="hidden lg:flex gap-5 text-[20px]">
@@ -48,11 +67,9 @@ const Navbar = () => {
               Beranda
             </Link>
             <Link
-              href="/"
-              onClick={() => {
-                setNav(false);
-                sessionStorage.setItem("scrollTo", "tentang-kami");
-              }}
+              href="/#about"
+              onClick={handleScrollToAbout}
+              className="hover:text-black trasition cursor-pointer"
             >
               Tentang
             </Link>
@@ -76,20 +93,21 @@ const Navbar = () => {
 
       {/* Mobile Menu */}
       <div
-        className={`lg:hidden fixed top-0 h-full w-[70%] bg-white shadow-lg 
+        className={`lg:hidden fixed top-0 right-0 h-full w-[70%] bg-white shadow-lg 
         transition-transform duration-300 z-[998] 
-        ${nav ? "-translate-x-0" : "-translate-x-full"}`}
+        ${nav ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex flex-col p-6 gap-6 text-lg font-medium mt-12">
           <Link href="/" onClick={() => setNav(false)}>
             Beranda
           </Link>
           <Link
-            href="/"
-            onClick={() => {
+            href="/#about"
+            onClick={(e) => {
+              handleScrollToAbout(e);
               setNav(false);
-              sessionStorage.setItem("scrollTo", "tentang-kami");
             }}
+            className="hover:text-black trasition cursor-pointer"
           >
             Tentang
           </Link>

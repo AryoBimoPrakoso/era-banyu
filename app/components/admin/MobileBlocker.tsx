@@ -23,7 +23,7 @@ export default function MobileBlocker({ children }: { children: React.ReactNode 
     return (
       <div className="flex h-screen items-center justify-center text-center px-6">
         <p className="text-3xl text-muted-foreground">
-          Gabisa make mobile, make laptop atau pc aja. gausah bikin repot lo!!, gw males responsivenya. lagian admin lewat mobile yang bener aja lo, gausah bikin repot!!!
+          Desktop only!, gunakan laptop atau pc untuk mengakses dashboard admin!
         </p>
       </div>
     )
