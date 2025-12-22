@@ -52,11 +52,11 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       {/* CARD */}
       <form
         onSubmit={handleLogin}
-        className="w-[350px] bg-[#f3f2f2] rounded-2xl p-8 shadow-sm flex flex-col gap-6"
+        className="w-[350px] shadow border border-gray-100 rounded-2xl p-8 flex flex-col gap-6"
       >
         {/* LOGO + TITLE */}
         <div className="flex items-center gap-4">
@@ -113,11 +113,11 @@ const Login = () => {
           </div>
 
           {/* Forgot password */}
-          <div className="text-right">
+          <Link href="/forgot-password" className="text-right">
             <button className="text-xs text-gray-600 hover:underline">
               forgot password?
             </button>
-          </div>
+          </Link>
         </div>
 
         {/* LOGIN BUTTON */}
